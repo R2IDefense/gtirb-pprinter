@@ -222,7 +222,11 @@ if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
   # Per-configuration options
   add_compile_options($<$<CONFIG:Debug>:-D_DEBUG>)
   add_compile_options($<$<CONFIG:Debug>:-DDEBUG>)
-  add_compile_options($<$<CONFIG:Debug>:-MDd>)
+  if(BUILD_SHARED_LIBS)
+    add_compile_options($<$<CONFIG:Debug>:-MDd>)
+  else()
+    add_compile_options($<$<CONFIG:Debug>:-MTd>)
+  endif()
   add_compile_options($<$<CONFIG:Debug>:-Ob0>) # Disables inline expansion
   add_compile_options(
     $<$<CONFIG:Debug>:-Od>) # Disables optimization, speeding compilation and
@@ -239,7 +243,12 @@ if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
 
   add_compile_options($<$<CONFIG:RelWithDebInfo>:-D_NDEBUG>)
   add_compile_options($<$<CONFIG:RelWithDebInfo>:-DNDEBUG>)
-  add_compile_options($<$<CONFIG:RelWithDebInfo>:-MD>)
+  if(BUILD_SHARED_LIBS)
+    add_compile_options($<$<CONFIG:RelWithDebInfo>:-MD>)
+  else()
+    add_compile_options($<$<CONFIG:RelWithDebInfo>:-MT>)
+  endif()
+
   add_compile_options($<$<CONFIG:RelWithDebInfo>:-O2>) # Creates fast code.
   add_compile_options(
     $<$<CONFIG:RelWithDebInfo>:-Ob2>) # The default value. Allows expansion of
@@ -257,7 +266,12 @@ if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
 
   add_compile_options($<$<CONFIG:Release>:-D_NDEBUG>)
   add_compile_options($<$<CONFIG:Release>:-DNDEBUG>)
-  add_compile_options($<$<CONFIG:Release>:-MD>)
+  if(BUILD_SHARED_LIBS)
+    add_compile_options($<$<CONFIG:Release>:-MD>)
+  else() 
+  add_compile_options($<$<CONFIG:Release>:-MT>)
+  endif()
+  
   add_compile_options($<$<CONFIG:Release>:-O2>) # Creates fast code.
   add_compile_options(
     $<$<CONFIG:Release>:-Ob2>) # The default value. Allows expansion of
@@ -322,16 +336,6 @@ endif()
 
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 
-# Fix up linker flags for static libs on Windows MSVC
-if(MSVC AND NOT BUILD_SHARED_LIBS)
-foreach(flag_var
-    CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
-    CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
-  if(${flag_var} MATCHES "/MD")
-    string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
-  endif(${flag_var} MATCHES "/MD")
-endforeach(flag_var)
-endif (MSVC AND NOT BUILD_SHARED_LIBS)
 
 # ---------------------------------------------------------------------------
 # capstone
