@@ -20,7 +20,7 @@
 using namespace gtirb;
 using namespace gtirb_layout;
 
-void ::gtirb_layout::registerAuxDataTypes() {
+void GTIRB_LAYOUT_EXPORT_API ::gtirb_layout::registerAuxDataTypes() {
   using namespace gtirb::schema;
   gtirb::AuxDataContainer::registerAuxDataType<Alignment>();
 }
@@ -83,7 +83,7 @@ static ByteInterval* getPredecessorByteInterval(ByteInterval& TargetBI) {
   return nullptr;
 }
 
-bool ::gtirb_layout::layoutRequired(
+bool GTIRB_LAYOUT_EXPORT_API ::gtirb_layout::layoutRequired(
     Module& M, std::unordered_set<std::string> SkipSections) {
   // If the module has no sections, we don't care that it has no address.
   if (!M.sections().empty()) {
@@ -123,7 +123,7 @@ bool ::gtirb_layout::layoutRequired(
   return false;
 }
 
-bool ::gtirb_layout::layoutRequired(IR& Ir) {
+bool GTIRB_LAYOUT_EXPORT_API ::gtirb_layout::layoutRequired(IR& Ir) {
   for (auto& M : Ir.modules())
     if (layoutRequired(M))
       return true;
@@ -139,7 +139,7 @@ bool ::gtirb_layout::layoutRequired(IR& Ir) {
 #pragma warning(disable : 4702) // unreachable code
 #endif
 
-void ::gtirb_layout::fixIntegralSymbols(gtirb::Context& Ctx, gtirb::Module& M) {
+void GTIRB_LAYOUT_EXPORT_API ::gtirb_layout::fixIntegralSymbols(gtirb::Context& Ctx, gtirb::Module& M) {
   // In general, we want as many integral symbols to not be integral as
   // possible. If they point to blocks, even 0-length ones, instead of raw
   // addresses, then they automatically get moved around when we adjust
@@ -335,7 +335,7 @@ static std::vector<ByteInterval*> toposort(Section& S) {
   return Sorted;
 }
 
-bool ::gtirb_layout::layoutModule(gtirb::Context& Ctx, Module& M) {
+bool GTIRB_LAYOUT_EXPORT_API ::gtirb_layout::layoutModule(gtirb::Context& Ctx, Module& M) {
   using namespace gtirb::schema;
 
   // Fix symbols with integral referents that point to known objects.
@@ -388,7 +388,7 @@ bool ::gtirb_layout::layoutModule(gtirb::Context& Ctx, Module& M) {
 #pragma warning(pop)
 #endif
 
-bool ::gtirb_layout::removeModuleLayout(gtirb::Context& Ctx, Module& M) {
+bool GTIRB_LAYOUT_EXPORT_API ::gtirb_layout::removeModuleLayout(gtirb::Context& Ctx, Module& M) {
   // Fix symbols with integral referents that point to known objects.
   fixIntegralSymbols(Ctx, M);
 
