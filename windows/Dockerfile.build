@@ -1,0 +1,48 @@
+# escape=`
+
+FROM buildtools:latest
+
+SHELL ["cmd", "/S", "/C"]
+
+RUN "C:\\BuildTools\\Common7\\Tools\\VsDevCmd.bat"
+RUN mkdir C:\wip && cd C:\wip
+
+RUN	echo "Building Boost" && `
+     curl -SL --output boost.zip https://boostorg.jfrog.io/artifactory/main/release/1.81.0/source/boost_1_81_0.zip && `
+	"C:\Program Files\7-Zip\7z.exe" x boost.zip -bsp1 -aoa -y && cd boost_1_81_0 && `
+	.\bootstrap.bat && .\b2 toolset=msvc runtime-link=static variant=release threading=multi --build-type=complete --with-program_options --with-system --with-filesystem link=static install `
+	--prefix=C:\Boost && cd .. && del /q boost.zip && `
+	rmdir /s /q boost_1_81_0 && setx PATH "%PATH%;C:\Boost" && echo "Done with Boost"
+
+# The latest protobuf has a dependency on ABSEIL and GTIRB linking was causing some issues
+# Wasted way too much time on it, rolling back to v3.20.1 until I have some time to look into it.
+RUN  echo "Building Protobuf" && cd C:\wip && `
+	git clone --branch v3.20.1 https://github.com/protocolbuffers/protobuf.git && `
+	cd protobuf && git submodule update --init --recursive && cd .. && `
+	cmake -S protobuf/cmake -B build -Dprotobuf_BUILD_TESTS=OFF -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=C:\protobuf -DCMAKE_CXX_STANDARD=17 && `
+	cmake --build build --config Release --target install && `
+	rmdir /s /q protobuf && rmdir /s /q build && `
+	setx PATH "%PATH%;C:\protobuf;C:\protobuf\bin" && echo "Done Building Protobuf"
+
+RUN cd c:\wip && refreshenv && echo "Building GTIRB" && `
+	git clone https://github.com/R2IDefense/gtirb.git && `
+	cd gtirb && `
+	cmake -B build -DCMAKE_CXX_STANDARD=17 -DGTIRB_ENABLE_TESTS=OFF -DGTIRB_BUILD_SHARED_LIBS=OFF -DGTIRB_PY_API=OFF -DGTIRB_CL_API=OFF -DGTIRB_JAVA_API=OFF -DCMAKE_INSTALL_PREFIX=C:/GTIRB && `
+	cmake --build build --config Release --target install && `
+	cd .. && rmdir /s /q gtirb && `
+	setx PATH "%PATH";C:\gtirb && echo "Done building GTIRB"
+
+RUN cd C:\wip && refreshenv && echo "Building GTIRB-PPRINTER" && `
+	git clone https://github.com/GrammaTech/capstone.git && `
+	cd capstone && git submodule update --init --recursive && `
+	cmake -B build -DCMAKE_INSTALL_PREFIX=C:\Capstone && `
+	cmake --build build --config Release --target install && `
+	cd .. && rmdir /s /q capstone && setx PATH "%PATH%;C:\Capstone\bin;C:\Capstone" && refreshenv
+
+RUN cd C:\wip && `
+	git clone https://github.com/R2IDefense/gtirb-pprinter.git && `
+	cd gtirb-pprinter && `
+	cmake -B build -DCMAKE_CXX_VISIBILITY_PRESET=hidden -DCAPSTONE_DIR=C:/Capstone -DGTIRB_PPRINTER_ENABLE_TESTS=OFF `
+				   -DBoost_USE_STATIC_LIBS=ON -DBoost_USE_MULTITHREADED=ON -DCMAKE_INSTALL_PREFIX=C:/Gtirb-pprinter -DCMAKE_CXX_STANDARD=17 -DGTIRB_PPRINTER_BUILD_SHARED_LIBS=OFF && `
+	cmake --build build --config Release --target install && `
+	echo "Done building GTIRB-PPRINTER"
