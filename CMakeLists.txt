@@ -80,6 +80,7 @@ option(GTIRB_PPRINTER_BUILD_SHARED_LIBS "Build shared libraries." ON)
 
 if(GTIRB_PPRINTER_STATIC_DRIVERS OR NOT GTIRB_PPRINTER_BUILD_SHARED_LIBS)
   set(BUILD_SHARED_LIBS OFF)
+  add_compile_definitions(gtirb_layout_STATIC)
 else()
   set(BUILD_SHARED_LIBS ON)
 endif()
