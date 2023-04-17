@@ -34,7 +34,7 @@ RUN cd c:\wip && refreshenv && echo "Building GTIRB" && `
 
 RUN cd C:\wip && refreshenv && echo "Building GTIRB-PPRINTER" && `
 	git clone https://github.com/GrammaTech/capstone.git && `
-	cd capstone && git submodule update --init --recursive && `
+	cd capstone && git checkout next && git submodule update --init --recursive && `
 	cmake -B build -DCMAKE_INSTALL_PREFIX=C:\Capstone && `
 	cmake --build build --config Release --target install && `
 	cd .. && rmdir /s /q capstone && setx PATH "%PATH%;C:\Capstone\bin;C:\Capstone" && refreshenv
