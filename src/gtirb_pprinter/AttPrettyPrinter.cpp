@@ -96,7 +96,14 @@ void AttPrettyPrinter::printSymbolicExpression(
     Stream << ")";
     return;
   }
-
+ 
+  /* need to prevent the AT&T syntax from subtracting rva values in the symbol data defintion.*/
+  if(module.getFileFormat() == gtirb::FileFormat::PE && SymExpr->Sym2 == getImageBase())
+  {
+    printSymbolReference(Stream, SymExpr->Sym1);
+    return;
+  }
+  
   PrettyPrinterBase::printSymbolicExpression(Stream, SymExpr, IsNotBranch);
 }
 
@@ -150,7 +157,7 @@ void AttPrettyPrinter::printOpIndirect(
   bool has_segment = op.mem.segment != X86_REG_INVALID;
   bool has_base = op.mem.base != X86_REG_INVALID;
   bool has_index = op.mem.index != X86_REG_INVALID;
-
+  
   if (cs_insn_group(this->csHandle, &inst, CS_GRP_CALL) ||
       cs_insn_group(this->csHandle, &inst, CS_GRP_JUMP)) {
     os << '*';
@@ -167,7 +174,17 @@ void AttPrettyPrinter::printOpIndirect(
       os << "__imp_";
     }
     PrettyPrinterBase::printSymbolicExpression(os, s, false);
-  } else {
+  } /* handle relative symbols in windows. this would be normally marked IMAGEREL on MASM*/
+  else if(const auto* rel = std::get_if<gtirb::SymAddrAddr>(symbolic))
+  {
+    if(std::optional<gtirb::Addr> Addr = rel->Sym1->getAddress(); Addr)
+    {
+      os << getSymbolName(*rel->Sym1);
+      addRelativeSymbol(rel->Sym1);
+      has_base = false; /* rva values for windows don't need to be added to the base */
+    }
+  }
+  else {
     // Displacement is numeric.
     if (!has_segment && !has_base && !has_index) {
       std::ios_base::fmtflags flags = os.flags();

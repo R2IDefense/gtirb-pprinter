@@ -1166,6 +1166,7 @@ void PrettyPrinterBase::printSymbolicDataType(
     std::ostream& os,
     const gtirb::ByteInterval::ConstSymbolicExpressionElement& /* SEE */,
     uint64_t Size, std::optional<std::string> /* Type */) {
+  
   switch (Size) {
   case 1:
     os << syntax.byteData();

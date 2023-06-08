@@ -90,6 +90,14 @@ ElfPrettyPrinter::ElfPrettyPrinter(gtirb::Context& context_,
     : PrettyPrinterBase(context_, module_, syntax_, policy_),
       elfSyntax(syntax_) {
 
+  /* for windows */
+  auto ImageBaseName =
+      module.getISA() == gtirb::ISA::IA32 ? "___ImageBase" : "__ImageBase";
+  if (auto It = module.findSymbols(ImageBaseName); !It.empty()) 
+  {
+    ImageBase = &*It.begin();
+  }
+
   skipVersionSymbols();
 }
 
@@ -424,7 +432,22 @@ void ElfPrettyPrinter::printSymbolicDataType(
     os << elfSyntax.uleb128();
   } else if (Type && *Type == "sleb128") {
     os << elfSyntax.sleb128();
-  } else {
+  } 
+  else if(module.getFileFormat() == gtirb::FileFormat::PE && Size == 4)
+  {
+    /* windows RVA */
+    const auto* sexpr = std::get_if<gtirb::SymAddrAddr>(&SEE.getSymbolicExpression());
+    if(sexpr != nullptr)
+    {
+      if(sexpr->Sym2 == ImageBase)
+      {
+        os << elfSyntax.rvaData();
+        return;
+      }
+    }
+    PrettyPrinterBase::printSymbolicData(os, SEE, Size, Type);
+  }
+  else {
     PrettyPrinterBase::printSymbolicDataType(os, SEE, Size, Type);
   }
 }
@@ -469,6 +492,26 @@ ElfPrettyPrinter::getAlignment(const gtirb::CodeBlock& Block) {
     }
   }
   return std::nullopt;
+}
+
+void ElfPrettyPrinter::printRvaSymbols(std::ostream &Stream)
+{
+  for(auto sym : rvaSymbols)
+  {
+    Stream << elfSyntax.rvaData() << " " << getSymbolName(*sym) << std::endl;
+  }
+}
+
+void ElfPrettyPrinter::printSectionFooter(std::ostream& os,
+                          const gtirb::Section& section)
+{
+  /* handle windows imagerel symbols */
+   if(section.getName().compare("_RDATA") == 0)
+   {
+      printRvaSymbols(os);
+   }
+
+   PrettyPrinterBase::printSectionFooter(os, section);
 }
 
 bool ElfPrettyPrinterFactory::isStaticBinary(

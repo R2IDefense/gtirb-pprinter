@@ -17,6 +17,7 @@
 
 #include "AuxDataUtils.hpp"
 #include "PrettyPrinter.hpp"
+#include <set>
 
 namespace gtirb_pprint {
 
@@ -33,6 +34,7 @@ public:
   const std::string& longData() const override { return LongDirective; }
   const std::string& quadData() const override { return QuadDirective; }
   const std::string& wordData() const override { return WordDirective; }
+  const std::string& rvaData() const {return RvaDirective;}
 
   const std::string& text() const override { return TextDirective; }
   const std::string& data() const override { return DataDirective; }
@@ -91,6 +93,7 @@ protected:
   const std::string LongDirective{".long"};
   const std::string QuadDirective{".quad"};
   const std::string WordDirective{".word"};
+  const std::string RvaDirective{".rva"};
 };
 
 class DEBLOAT_PRETTYPRINTER_EXPORT_API ElfPrettyPrinter
@@ -111,7 +114,9 @@ protected:
   void printSectionHeaderDirective(std::ostream& os,
                                    const gtirb::Section& section) override;
   void printSectionProperties(std::ostream& os,
-                              const gtirb::Section& section) override;
+                              const gtirb::Section& section) override;                              
+  void printSectionFooter(std::ostream& os,
+                          const gtirb::Section& section) override;                              
   void printSectionFooterDirective(std::ostream& os,
                                    const gtirb::Section& addr) override;
 
@@ -152,9 +157,19 @@ protected:
   void skipVersionSymbols();
 
   std::optional<uint64_t> getAlignment(const gtirb::CodeBlock& Block) override;
+  const gtirb::Symbol* getImageBase() {return ImageBase;}
+
+  void addRelativeSymbol(gtirb::Symbol* sym)
+  {
+    rvaSymbols.insert(sym);
+  }
+
+  void printRvaSymbols(std::ostream &Stream);
 
 private:
   bool TlsGdSequence = false;
+  const gtirb::Symbol* ImageBase;
+  std::set<gtirb::Symbol*> rvaSymbols;
 };
 
 class DEBLOAT_PRETTYPRINTER_EXPORT_API ElfPrettyPrinterFactory
