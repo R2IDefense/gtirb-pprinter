@@ -158,34 +158,50 @@ getSymbolVersions(const gtirb::Module& M) {
   return M.getAuxData<gtirb::provisional_schema::ElfSymbolVersions>();
 }
 
-std::optional<std::string> getSymbolVersionString(const gtirb::Symbol& Sym) {
+SymbolVersionInfo getSymbolVersionInfo(const gtirb::Symbol& Sym) {
   const auto SymbolVersions = getSymbolVersions(*Sym.getModule());
   if (!SymbolVersions) {
-    return std::nullopt;
+    return NoSymbolVersionAuxData();
   }
   auto& [SymVerDefs, SymVersNeeded, SymVersionEntries] = *SymbolVersions;
   auto VersionIt = SymVersionEntries.find(Sym.getUUID());
   if (VersionIt == SymVersionEntries.end()) {
-    return std::nullopt;
+    return NoSymbolVersion();
   }
-  uint16_t VersionId = std::get<0>(VersionIt->second);
-  std::string Connector = std::get<1>(VersionIt->second) ? "@" : "@@";
+  auto& [VersionId, Hidden] = VersionIt->second;
   // Search for the version string
   auto VersionDef = SymVerDefs.find(VersionId);
   if (VersionDef != SymVerDefs.end()) {
-    return Connector + *std::get<0>(VersionDef->second).begin();
+    std::string Connector = Hidden ? "@" : "@@";
+    auto& [VersionStrs, Flags] = VersionDef->second;
+    InternalSymbolVersion Info = {Connector + *VersionStrs.begin(), Flags};
+    return Info;
   }
-  Connector = "@";
-  for (auto& [Key, Val] : SymVersNeeded) {
-    auto VersionReq = Val.find(VersionId);
-    if (VersionReq != Val.end()) {
-      return Connector + VersionReq->second;
+
+  for (auto& [Library, SymVerMap] : SymVersNeeded) {
+    auto VersionReq = SymVerMap.find(VersionId);
+    if (VersionReq != SymVerMap.end()) {
+      std::string Connector = "@";
+      ExternalSymbolVersion Info = {Connector + VersionReq->second, Library};
+      return Info;
     }
   }
-  // This should not happen
-  assert(!"Symbol verion entry with no def or need found in "
-          "getSymbolVersionString()");
-  return std::nullopt;
+  return UndefinedSymbolVersion();
+}
+
+std::optional<std::string> getSymbolVersionString(const gtirb::Symbol& Sym) {
+  auto VersionInfo = getSymbolVersionInfo(Sym);
+  return std::visit(
+      [](auto& Arg) -> std::optional<std::string> {
+        using T = std::decay_t<decltype(Arg)>;
+        if constexpr (std::is_same_v<T, InternalSymbolVersion> ||
+                      std::is_same_v<T, ExternalSymbolVersion>) {
+          return Arg.VersionSuffix;
+        } else {
+          return std::nullopt;
+        }
+      },
+      VersionInfo);
 }
 
 std::optional<std::tuple<uint64_t, uint64_t>>

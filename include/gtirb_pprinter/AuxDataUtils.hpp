@@ -222,6 +222,53 @@ getSymbolVersions(const gtirb::Module& M);
 
 std::optional<std::string> getSymbolVersionString(const gtirb::Symbol& Sym);
 
+/**
+Returned by getSymbolVersionInfo if the GTIRB has no elfSymbolVersion auxdata
+*/
+struct NoSymbolVersionAuxData {};
+
+/**
+Returned by getSymbolVersionInfo if the Symbol is not versioned
+*/
+struct NoSymbolVersion {};
+
+/**
+Returned by getSymbolVersionInfo if the Symbol is versioned, but not found in
+either SymVerDefs or SymVerNeeded (i.e., the auxdata is invalid)
+*/
+struct UndefinedSymbolVersion {};
+
+/**
+Returned by getSymbolVersionInfo for external symbols
+*/
+struct ExternalSymbolVersion {
+  std::string VersionSuffix;
+  std::string Library;
+};
+
+/**
+Returned by getSymbolVersionInfo for internal symbols
+*/
+struct InternalSymbolVersion {
+  std::string VersionSuffix;
+  uint16_t Flags;
+};
+
+using SymbolVersionInfo =
+    std::variant<NoSymbolVersionAuxData, NoSymbolVersion,
+                 UndefinedSymbolVersion, ExternalSymbolVersion,
+                 InternalSymbolVersion>;
+
+/**
+Get symbol version information for a given symbol.
+
+Returns a gtirb::ErrorOr containing either a struct with symbol version
+information or an empty structure representing a status.
+
+See the SymbolVersionInfo variant members for possible returned structures.
+*/
+SymbolVersionInfo getSymbolVersionInfo(const gtirb::Symbol& Sym);
+
 // Load the section properties of a binary section from the
 // `sectionProperties' AuxData tables.
 std::optional<std::tuple<uint64_t, uint64_t>>
