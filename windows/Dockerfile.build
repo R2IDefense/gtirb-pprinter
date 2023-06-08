@@ -36,13 +36,13 @@ RUN	cd C:\wip\gtirb && setx PATH "%PATH%;C:\protobuf;C:\protobuf\bin" && refresh
 	setx PATH "%PATH";C:\gtirb && echo "Done building GTIRB"
 
 RUN cd C:\wip && refreshenv && echo "Building GTIRB-PPRINTER" && `
-	git clone https://github.com/GrammaTech/capstone.git && `
-	cd capstone && git checkout next && git submodule update --init --recursive && `
+	git clone -b next https://github.com/GrammaTech/capstone.git && `
+	cd capstone && `
 	cmake -B build -DCMAKE_INSTALL_PREFIX=C:\Capstone -DCMAKE_CXX_FLAGS="-D_WIN32_WINNT=0x0601" && `
 	cmake --build build --config Release --target install && `
 	cd .. && rmdir /s /q capstone && setx PATH "%PATH%;C:\Capstone\bin;C:\Capstone" && refreshenv
 
-RUN cd C:\wip && echo "Building DDisasm" && `
+RUN cd C:\wip && echo "Building GTIRB-PPRINTER" && `
 	git clone https://github.com/R2IDefense/gtirb-pprinter.git && `
 	cd gtirb-pprinter && `
 	cmake -B build -DCMAKE_CXX_VISIBILITY_PRESET=hidden -DCAPSTONE_DIR=C:/Capstone -DBOOST_ROOT=C:/Boost -DGTIRB_PPRINTER_ENABLE_TESTS=OFF `

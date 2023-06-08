@@ -593,7 +593,7 @@ void PrettyPrinterBase::fixupInstruction(cs_insn&) {}
 // printers (Masm has additional fixups).
 void PrettyPrinterBase::x86FixupInstruction(cs_insn& inst) {
   cs_x86& detail = inst.detail->x86;
-
+  
   // Operands are implicit for various MOVS* instructions. But there is also
   // an SSE2 instruction named MOVSD which has explicit operands.
   if ((inst.id == X86_INS_MOVSB || inst.id == X86_INS_MOVSW ||

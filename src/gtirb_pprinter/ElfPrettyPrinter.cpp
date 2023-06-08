@@ -286,6 +286,11 @@ void ElfPrettyPrinter::printSymbolSize(
 void ElfPrettyPrinter::printSymExprSuffix(std::ostream& OS,
                                           const gtirb::SymAttributeSet& Attrs,
                                           bool IsNotBranch) {
+  if (module.getFileFormat() == gtirb::FileFormat::PE)
+  {
+     return;
+  }
+
   if (Attrs.count(gtirb::SymAttribute::PLT)) {
     if (!IsNotBranch) {
       OS << "@PLT";

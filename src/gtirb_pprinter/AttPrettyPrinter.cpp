@@ -78,8 +78,9 @@ void AttPrettyPrinter::printOpRegdirect(std::ostream& os, const cs_insn& inst,
   assert(op.type == X86_OP_REG &&
          "printOpRegdirect called without a register operand");
   if (cs_insn_group(this->csHandle, &inst, CS_GRP_CALL) ||
-      cs_insn_group(this->csHandle, &inst, CS_GRP_JUMP))
+      cs_insn_group(this->csHandle, &inst, CS_GRP_JUMP)) {
     os << '*';
+  }
   os << getRegisterName(op.reg);
 }
 
@@ -151,8 +152,9 @@ void AttPrettyPrinter::printOpIndirect(
   bool has_index = op.mem.index != X86_REG_INVALID;
 
   if (cs_insn_group(this->csHandle, &inst, CS_GRP_CALL) ||
-      cs_insn_group(this->csHandle, &inst, CS_GRP_JUMP))
+      cs_insn_group(this->csHandle, &inst, CS_GRP_JUMP)) {
     os << '*';
+  }
 
   if (has_segment) {
     os << getRegisterName(op.mem.segment) << ':';
@@ -160,6 +162,10 @@ void AttPrettyPrinter::printOpIndirect(
 
   if (const auto* s = std::get_if<gtirb::SymAddrConst>(symbolic)) {
     // Displacement is symbolic.
+    if ((module.getFileFormat() == gtirb::FileFormat::PE) &&
+        s->Attributes.count(gtirb::SymAttribute::GOT) > 0) {
+      os << "__imp_";
+    }
     PrettyPrinterBase::printSymbolicExpression(os, s, false);
   } else {
     // Displacement is numeric.

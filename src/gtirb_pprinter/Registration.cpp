@@ -78,6 +78,8 @@ void registerPrettyPrinters() {
                   std::make_shared<MasmPrettyPrinterFactory>());
   registerPrinter({"pe", "raw"}, {"x86", "x64"}, {"uasm"},
                   std::make_shared<UasmPrettyPrinterFactory>());
+  registerPrinter({"pe", "raw"}, {"x86", "x64"}, {"att"},
+                  std::make_shared<AttPrettyPrinterFactory>());
   setDefaultSyntax({"pe", "raw"}, {"x86", "x64"}, {"assembler", "ui", "debug"},
                    "masm");
 }
