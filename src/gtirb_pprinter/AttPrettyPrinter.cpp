@@ -35,6 +35,29 @@ AttPrettyPrinter::AttPrettyPrinter(gtirb::Context& context_,
   cs_option(this->csHandle, CS_OPT_SYNTAX, CS_OPT_SYNTAX_ATT);
 }
 
+void AttPrettyPrinter:: printHeader(std::ostream& os) 
+{
+  std::optional<const gtirb::Symbol*> EntryPoint;
+
+  /* @TODO: do we need the .extern for external symbols? */  
+  if(module.getFileFormat() != gtirb::FileFormat::PE)
+  {
+    return;
+  }
+
+  if (auto* Block = module.getEntryPoint(); Block && Block->getAddress()) 
+  {
+    auto It = module.findSymbols(*Block->getAddress());
+    EntryPoint = &*It.begin();
+  }
+
+  if(EntryPoint)
+  {
+    os << elfSyntax.global() << " " << (*EntryPoint)->getName() << "\n";
+  }
+
+}
+
 void AttPrettyPrinter::fixupInstruction(cs_insn& Insn) {
   cs_x86& Detail = Insn.detail->x86;
 

@@ -169,6 +169,7 @@ protected:
 private:
   bool TlsGdSequence = false;
   const gtirb::Symbol* ImageBase;
+  /* Keep track of all symbols that need to be IMAGEREL (windows) */
   std::set<gtirb::Symbol*> rvaSymbols;
 };
 

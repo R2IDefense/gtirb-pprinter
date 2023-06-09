@@ -541,7 +541,7 @@ ElfPrettyPrinterFactory::ElfPrettyPrinterFactory() {
           /// Sections to avoid printing.
           {".comment", ".eh_frame_hdr", ".eh_frame", ".fini", ".got",
            ".got.plt", ".init", ".plt", ".plt.got", ".plt.sec", ".rela.dyn",
-           ".rela.plt"},
+           ".rela.plt", ".pdata"},
 
           /// Sections with possible data object exclusion.
           {".fini_array", ".init_array"},
