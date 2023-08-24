@@ -13,6 +13,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "FileUtils.hpp"
+#include "driver/Logger.h"
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpragmas"
@@ -59,7 +60,25 @@ TempFile::TempFile(const std::string extension) {
   FileStream.open(Name);
 }
 
-TempFile::~TempFile() { fs::remove(Name); }
+TempFile::TempFile(TempFile&& Other)
+    : Name(std::move(Other.Name)), FileStream(std::move(Other.FileStream)) {
+  Other.Empty = true;
+}
+
+TempFile::~TempFile() {
+  if (isOpen()) {
+    LOG_WARNING << "Removing open temporary file: " << Name << "\n";
+    close();
+  }
+  if (!Empty && !Name.empty()) {
+    boost::system::error_code ErrorCode;
+    fs::remove(Name, ErrorCode);
+    if (ErrorCode.value()) {
+      LOG_ERROR << "Failed to remove temporary file: " << Name << "\n";
+      LOG_ERROR << ErrorCode.message();
+    }
+  }
+}
 
 TempDir::TempDir() : Name(), Errno(0) {
 #ifdef _WIN32

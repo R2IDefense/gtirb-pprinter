@@ -188,13 +188,17 @@ std::optional<uint64_t> getAlignment(const gtirb::UUID& Uuid,
 std::optional<gtirb::UUID> getForwardedSymbol(const gtirb::Symbol* Symbol);
 
 // Load all library names from the `libraries' AuxData table.
+DEBLOAT_PRETTYPRINTER_EXPORT_API
 std::vector<std::string> getLibraries(const gtirb::Module& Module);
 
 // Load all library path names from the `libraryPaths' AuxData table.
 std::vector<std::string> getLibraryPaths(const gtirb::Module& Module);
 
 // Load all binary type specifiers from the `binaryType' AuxData table.
-std::vector<std::string> getBinaryType(const gtirb::Module& Module);
+DEBLOAT_PRETTYPRINTER_EXPORT_API std::vector<std::string>
+getBinaryType(const gtirb::Module& Module);
+
+void setBinaryType(gtirb::Module& Module, const std::vector<std::string>& Vec);
 
 // Load symbol forwarding mapping from the `symbolForwarding' AuxData table.
 std::map<gtirb::UUID, gtirb::UUID>
@@ -213,6 +217,12 @@ getElfSymbolInfo(const gtirb::Symbol& Sym);
 
 // Store the properties of a symbol to the `elfSymbolInfo' AuxData table.
 void setElfSymbolInfo(gtirb::Symbol& Sym, aux_data::ElfSymbolInfo& Info);
+
+// In the given symbol range, find a symbol with the specified Binding in its
+// elfSymbolInfo auxdata
+gtirb::Symbol*
+findSymWithBinding(gtirb::Module::symbol_ref_range CandidateSymbols,
+                   const std::string& Binding);
 
 // Determine if any versions symbols are defined in the IR.
 DEBLOAT_PRETTYPRINTER_EXPORT_API bool hasVersionedSymDefs(const gtirb::IR& IR);
@@ -302,6 +312,27 @@ getPeSafeExceptionHandlers(const gtirb::Module& M);
 
 gtirb::schema::ElfSymbolTabIdxInfo::Type
 getElfSymbolTabIdxInfo(const gtirb::Module& M);
+
+// Get the code block from an auxdata that contains a single CodeBlock UUID
+template <typename Schema>
+const gtirb::CodeBlock* getCodeBlock(const gtirb::Context& Ctx,
+                                     const gtirb::Module& Mod) {
+  auto UUID = Mod.getAuxData<Schema>();
+  if (UUID) {
+    auto Nd = gtirb::Node::getByUUID(Ctx, *UUID);
+    if (const auto* CB = dyn_cast<gtirb::CodeBlock>(Nd)) {
+      return CB;
+    }
+  }
+  return nullptr;
+}
+
+template <typename Schema>
+gtirb::CodeBlock* getCodeBlock(gtirb::Context& Ctx, gtirb::Module& Mod) {
+  return const_cast<gtirb::CodeBlock*>(
+      getCodeBlock<Schema>(const_cast<const gtirb::Context&>(Ctx),
+                           const_cast<const gtirb::Module&>(Mod)));
+}
 
 // Load map from UUIDs to type descriptors
 gtirb::provisional_schema::TypeTable::Type getTypeTable(const gtirb::Module& M);

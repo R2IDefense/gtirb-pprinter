@@ -269,7 +269,6 @@ int PrettyPrinter::print(std::ostream& Stream, gtirb::Context& Context,
   // Configure printing policy.
   PrintingPolicy policy(getPolicy(Module));
   policy.LstMode = LstMode;
-  policy.Shared = Shared;
   policy.IgnoreSymbolVersions = IgnoreSymbolVersions;
   FunctionPolicy.apply(policy.skipFunctions);
   SymbolPolicy.apply(policy.skipSymbols);
@@ -754,7 +753,7 @@ void PrettyPrinterBase::printOperandList(std::ostream& os,
 #if CS_API_MAJOR >= 5
         X86_INS_KUNPCKDQ, X86_INS_KUNPCKWD, X86_INS_KADDB, X86_INS_KADDW,
         X86_INS_KADDD, X86_INS_KADDQ, X86_INS_KTESTB, X86_INS_KTESTW,
-        X86_INS_KTESTD, X86_INS_KTESTQ,
+        X86_INS_KTESTD, X86_INS_KTESTQ, X86_INS_VPCMPESTRI
 #endif
   };
 
@@ -1593,6 +1592,40 @@ bool PrettyPrinterBase::x86InstHasMoffsetEncoding(const cs_insn& inst) {
          inst.detail->x86.opcode[1] == 0x00 &&
          inst.detail->x86.opcode[2] == 0x00 &&
          inst.detail->x86.opcode[3] == 0x00;
+}
+
+void PrettyPrinter::updateDynMode(gtirb::Module& Module,
+                                  const std::string& SharedOption) {
+  if (Module.getFileFormat() != gtirb::FileFormat::ELF)
+    return;
+
+  if (SharedOption == "yes") {
+    std::vector<std::string> Vec;
+    Vec.push_back("DYN");
+    Vec.push_back("SHARED");
+    aux_data::setBinaryType(Module, Vec);
+  } else if (SharedOption == "no") {
+    const auto& T = aux_data::getBinaryType(Module);
+    if (std::find(T.begin(), T.end(), "DYN") != T.end()) {
+      std::vector<std::string> Vec;
+      Vec.push_back("DYN");
+      Vec.push_back("PIE");
+      aux_data::setBinaryType(Module, Vec);
+    }
+  }
+}
+
+DynMode PrettyPrinter::getDynMode(const gtirb::Module& Module) const {
+  const auto& T = aux_data::getBinaryType(Module);
+  if (std::find(T.begin(), T.end(), "SHARED") != T.end()) {
+    return DYN_MODE_SHARED;
+  } else if (std::find(T.begin(), T.end(), "PIE") != T.end()) {
+    return DYN_MODE_PIE;
+  } else if (std::find(T.begin(), T.end(), "DYN") != T.end()) {
+    return DYN_MODE_PIE;
+  } else {
+    return DYN_MODE_NONE;
+  }
 }
 
 } // namespace gtirb_pprint

@@ -111,6 +111,16 @@ std::vector<std::string> getBinaryType(const gtirb::Module& Module) {
   return util::getOrDefault<gtirb::schema::BinaryType>(Module);
 }
 
+void setBinaryType(gtirb::Module& Module, const std::vector<std::string>& Vec) {
+  auto* BinTypeVec = Module.getAuxData<gtirb::schema::BinaryType>();
+  if (BinTypeVec) {
+    BinTypeVec->clear();
+    for (const auto& S : Vec) {
+      BinTypeVec->push_back(S);
+    }
+  }
+}
+
 std::map<gtirb::UUID, gtirb::UUID>
 getSymbolForwarding(const gtirb::Module& Module) {
   return util::getOrDefault<gtirb::schema::SymbolForwarding>(Module);
@@ -202,6 +212,20 @@ std::optional<std::string> getSymbolVersionString(const gtirb::Symbol& Sym) {
         }
       },
       VersionInfo);
+}
+
+gtirb::Symbol*
+findSymWithBinding(gtirb::Module::symbol_ref_range CandidateSymbols,
+                   const std::string& Binding) {
+  auto Result = std::find_if(CandidateSymbols.begin(), CandidateSymbols.end(),
+                             [&](gtirb::Symbol& S) {
+                               auto SymInfo = aux_data::getElfSymbolInfo(S);
+                               return SymInfo->Binding == Binding;
+                             });
+  if (Result == CandidateSymbols.end()) {
+    return nullptr;
+  }
+  return &(*Result);
 }
 
 std::optional<std::tuple<uint64_t, uint64_t>>

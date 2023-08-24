@@ -186,6 +186,15 @@ public:
   defaultPrintingPolicy(const gtirb::Module& Module) const;
 };
 
+/**
+Symbol is attached to the .plt, which can happen if the symbol has an address
+in the ELF metadata. This seems to occur sometimes.
+
+If the given symbol is such a symbol, return the section that it belongs to.
+Otherwise, return null.
+*/
+const gtirb::Section* IsExternalPLTSym(const gtirb::Symbol& Sym);
+
 } // namespace gtirb_pprint
 
 #endif /* GTIRB_PP_ELF_PRINTER_H */

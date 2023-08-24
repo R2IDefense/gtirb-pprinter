@@ -83,13 +83,14 @@
 #define SHN_HIRESERVE 0xffff
 
 namespace gtirb_pprint {
+static const std::unordered_set<std::string> PLTSections = {".plt", ".plt.sec",
+                                                            ".plt.got"};
 ElfPrettyPrinter::ElfPrettyPrinter(gtirb::Context& context_,
                                    const gtirb::Module& module_,
                                    const ElfSyntax& syntax_,
                                    const PrintingPolicy& policy_)
     : PrettyPrinterBase(context_, module_, syntax_, policy_),
       elfSyntax(syntax_) {
-
   /* for windows */
   auto ImageBaseName =
       module.getISA() == gtirb::ISA::IA32 ? "___ImageBase" : "__ImageBase";
@@ -298,7 +299,6 @@ void ElfPrettyPrinter::printSymExprSuffix(std::ostream& OS,
   {
      return;
   }
-
   if (Attrs.count(gtirb::SymAttribute::PLT)) {
     if (!IsNotBranch) {
       OS << "@PLT";
@@ -357,32 +357,38 @@ void ElfPrettyPrinter::printSymbolDefinitionRelativeToPC(
   os << "\n";
 }
 
-void ElfPrettyPrinter::printIntegralSymbols(std::ostream& os) {
-  PrettyPrinterBase::printIntegralSymbols(os);
-
-  // Print integral symbols attached to the PLT.
-  for (const auto& sym : module.symbols_by_name()) {
-    if (sym.getAddress()) {
-      if (auto Info = aux_data::getElfSymbolInfo(sym)) {
-        if (Info->Binding == "GLOBAL") {
-          if (auto Block = sym.getReferent<gtirb::CodeBlock>()) {
-            if (auto ByteInterval = Block->getByteInterval()) {
-              if (auto Section = ByteInterval->getSection()) {
-                if (Section->getName() == ".plt" &&
-                    shouldSkip(policy, *Section)) {
-                  // Symbol is attached to the .plt, but it is skipped.
-                  // This can happen to .plt symbols if the symbol has an
-                  // address in the ELF metadata, which seems to occur
-                  // sometimes. We need to emit the symbol definition, ensuring
-                  // that we link with the correct symbol version (if versions
-                  // exist).
-                  printUndefinedSymbol(os, sym);
-                }
+const gtirb::Section* IsExternalPLTSym(const gtirb::Symbol& Sym) {
+  if (Sym.getAddress()) {
+    if (auto Info = aux_data::getElfSymbolInfo(Sym)) {
+      if (Info->Binding == "GLOBAL" || Info->Binding == "WEAK") {
+        if (auto Block = Sym.getReferent<gtirb::CodeBlock>()) {
+          if (auto ByteInterval = Block->getByteInterval()) {
+            if (auto Section = ByteInterval->getSection()) {
+              std::string SectName = Section->getName();
+              if (PLTSections.find(SectName) != PLTSections.end()) {
+                return Section;
               }
             }
           }
         }
       }
+    }
+  }
+  return nullptr;
+}
+
+void ElfPrettyPrinter::printIntegralSymbols(std::ostream& os) {
+  PrettyPrinterBase::printIntegralSymbols(os);
+
+  // Print integral symbols attached to the PLT.
+  for (const auto& sym : module.symbols_by_name()) {
+    auto Section = IsExternalPLTSym(sym);
+    if (Section && shouldSkip(policy, *Section)) {
+      // Symbol is attached to the .plt, but it is skipped.
+      // In such cases, we need to emit the symbol definition, ensuring
+      // that we link with the correct symbol version (if versions
+      // exist).
+      printUndefinedSymbol(os, sym);
     }
   }
 }
@@ -526,6 +532,10 @@ const PrintingPolicy& ElfPrettyPrinterFactory::defaultPrintingPolicy(
 }
 
 ElfPrettyPrinterFactory::ElfPrettyPrinterFactory() {
+  std::unordered_set<std::string> dynamicSkipSections = {
+      ".comment", ".eh_frame_hdr", ".eh_frame", ".fini",    ".got",
+      ".got.plt", ".init",         ".rela.dyn", ".rela.plt"};
+  dynamicSkipSections.insert(PLTSections.begin(), PLTSections.end());
   registerNamedPolicy(
       "dynamic",
       PrintingPolicy{
@@ -539,9 +549,7 @@ ElfPrettyPrinterFactory::ElfPrettyPrinterFactory() {
            "_IO_stdin_used", "__TMC_END__"},
 
           /// Sections to avoid printing.
-          {".comment", ".eh_frame_hdr", ".eh_frame", ".fini", ".got",
-           ".got.plt", ".init", ".plt", ".plt.got", ".plt.sec", ".rela.dyn",
-           ".rela.plt", ".pdata"},
+          dynamicSkipSections,
 
           /// Sections with possible data object exclusion.
           {".fini_array", ".init_array"},
@@ -561,20 +569,24 @@ ElfPrettyPrinterFactory::ElfPrettyPrinterFactory() {
                           /// Extra compiler arguments.
                           {"-static", "-nostartfiles"},
                       });
-  registerNamedPolicy(
-      "complete", PrintingPolicy{
-                      /// Functions to avoid printing.
-                      {},
-                      /// Symbols to avoid printing.
-                      {},
-                      /// Sections to avoid printing.
-                      {".eh_frame_hdr", ".eh_frame", ".got", ".got.plt", ".plt",
-                       ".plt.got", ".plt.sec", ".rela.dyn", ".rela.plt"},
-                      /// Sections with possible data object exclusion.
-                      {},
-                      /// Extra compiler arguments.
-                      {"-nostartfiles"},
-                  });
+  std::unordered_set<std::string> completeSkipSections = {
+      ".eh_frame_hdr", ".eh_frame", ".got",
+      ".got.plt",      ".rela.dyn", ".rela.plt"};
+  completeSkipSections.insert(PLTSections.begin(), PLTSections.end());
+
+  registerNamedPolicy("complete",
+                      PrintingPolicy{
+                          /// Functions to avoid printing.
+                          {},
+                          /// Symbols to avoid printing.
+                          {},
+                          /// Sections to avoid printing.
+                          completeSkipSections,
+                          /// Sections with possible data object exclusion.
+                          {},
+                          /// Extra compiler arguments.
+                          {"-nostartfiles"},
+                      });
 }
 
 } // namespace gtirb_pprint
