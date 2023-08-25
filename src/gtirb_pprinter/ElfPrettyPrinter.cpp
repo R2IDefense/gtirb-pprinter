@@ -17,6 +17,8 @@
 #include "driver/Logger.h"
 
 #include "AuxDataSchema.hpp"
+#include <gtirb/Casting.hpp>
+
 #define SHT_NULL 0
 #define SHT_PROGBITS 1
 #define SHT_SYMTAB 2

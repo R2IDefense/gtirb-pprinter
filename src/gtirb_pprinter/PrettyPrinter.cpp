@@ -29,6 +29,8 @@
 #include <utility>
 #include <variant>
 
+using namespace gtirb;
+
 template <class T> T* nodeFromUUID(gtirb::Context& C, gtirb::UUID id) {
   return dyn_cast_or_null<T>(gtirb::Node::getByUUID(C, id));
 }

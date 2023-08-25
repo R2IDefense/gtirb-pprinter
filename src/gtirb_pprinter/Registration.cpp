@@ -23,6 +23,8 @@
 #include "PrettyPrinter.hpp"
 #include <gtirb/gtirb.hpp>
 
+using namespace gtirb;
+
 namespace gtirb_pprint {
 void registerAuxDataTypes() {
   using namespace gtirb::schema;

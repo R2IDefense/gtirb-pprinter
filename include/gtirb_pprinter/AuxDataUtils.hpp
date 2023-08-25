@@ -8,6 +8,8 @@
 #include "AuxDataSchema.hpp"
 #include "Export.hpp"
 
+using namespace gtirb;
+
 /*
  * What goes here?
 

@@ -1,7 +1,10 @@
 #include "AuxDataUtils.hpp"
 #include <iostream>
 
-namespace aux_data {
+using namespace gtirb;
+
+namespace aux_data 
+{
 
 bool validateAuxData(const gtirb::Module& Mod, std::string TargetFormat) {
   if (!Mod.getAuxData<gtirb::schema::FunctionEntries>()) {

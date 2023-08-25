@@ -22,6 +22,8 @@
 
 #include <capstone/capstone.h>
 
+using namespace gtirb;
+
 namespace gtirb_pprint {
 
 Arm64PrettyPrinter::Arm64PrettyPrinter(gtirb::Context& context_,

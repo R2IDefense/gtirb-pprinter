@@ -22,6 +22,8 @@
 #include "regex"
 #include <boost/algorithm/string/replace.hpp>
 
+using namespace gtirb;
+
 namespace gtirb_pprint {
 
 std::string MasmSyntax::formatSectionName(const std::string& S) const {
