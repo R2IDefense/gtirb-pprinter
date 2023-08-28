@@ -28,8 +28,6 @@
 namespace fs = boost::filesystem;
 namespace bp = boost::process;
 
-using namespace gtirb;
-
 namespace gtirb_bprint {
 
 // Command-line argument wrapper for `lib.exe' or alternate library utility.

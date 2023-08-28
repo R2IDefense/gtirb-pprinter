@@ -34,6 +34,7 @@
 #include <unordered_set>
 #include <vector>
 
+using namespace gtirb;
 /// \brief Pretty-print GTIRB representations.
 namespace gtirb_pprint {
 

@@ -4,6 +4,7 @@
 #include <optional>
 #include <regex>
 #include <string_view>
+#include <map>
 
 namespace fs = boost::filesystem;
 

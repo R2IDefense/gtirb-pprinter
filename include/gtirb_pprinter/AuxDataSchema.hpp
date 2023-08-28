@@ -137,15 +137,6 @@ struct ElfSymbolTabIdxInfo {
   typedef std::map<gtirb::UUID, ElfSymbolTabIdxInfoEntry> Type;
 };
 
-struct ElfDynamicInit {
-  static constexpr const char* Name = "elfDynamicInit";
-  gtirb::UUID UUID;
-};
-
-struct ElfDynamicFini {
-  static constexpr const char* Name = "elfDynamicFini";
-  gtirb::UUID UUID;
-};
 } // namespace schema
 
 namespace provisional_schema {
