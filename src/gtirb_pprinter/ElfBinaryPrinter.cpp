@@ -14,11 +14,14 @@
 //===----------------------------------------------------------------------===//
 #include "ElfBinaryPrinter.hpp"
 
+#include "Arm64PrettyPrinter.hpp"
+#include "ArmPrettyPrinter.hpp"
 #include "AuxDataSchema.hpp"
 #include "AuxDataUtils.hpp"
 #include "ElfPrettyPrinter.hpp"
 #include "ElfVersionScriptPrinter.hpp"
 #include "FileUtils.hpp"
+#include "Mips32PrettyPrinter.hpp"
 #include "driver/Logger.h"
 #include <boost/filesystem.hpp>
 #include <fstream>
@@ -70,8 +73,27 @@ bool isBlackListed(std::string sym) {
   return false;
 }
 
+/**
+Get an appropriate syntax for an architecture
+*/
+static std::unique_ptr<gtirb_pprint::ElfSyntax>
+getISASyntax(const gtirb::ISA ISA) {
+  switch (ISA) {
+  case gtirb::ISA::ARM64:
+    return std::make_unique<gtirb_pprint::Arm64Syntax>();
+  case gtirb::ISA::ARM:
+    return std::make_unique<gtirb_pprint::ArmSyntax>();
+  case gtirb::ISA::MIPS32:
+    return std::make_unique<gtirb_pprint::Mips32Syntax>();
+  case gtirb::ISA::X64:
+  case gtirb::ISA::IA32:
+  default:
+    return std::make_unique<gtirb_pprint::ElfSyntax>();
+  }
+}
+
 bool ElfBinaryPrinter::generateDummySO(
-    const gtirb::Module& module, const std::string& LibDir,
+    const gtirb::Module& Module, const std::string& LibDir,
     const std::string& Lib, const std::vector<SymbolGroup>& SymGroups) const {
 
   // Assume that lib is a filename w/ no path prefix
@@ -84,6 +106,9 @@ bool ElfBinaryPrinter::generateDummySO(
   {
     std::ofstream AsmFile(AsmFilePath.string());
     AsmFile << "# Generated dummy file for .so undefined symbols\n";
+
+    std::unique_ptr<gtirb_pprint::ElfSyntax> Syntax =
+        getISASyntax(Module.getISA());
 
     std::map<std::string, int> VersionedSymNameCounts;
     for (auto& SymGroup : SymGroups) {
@@ -119,11 +144,11 @@ bool ElfBinaryPrinter::generateDummySO(
 
         std::string SymType = SymInfo->Type;
         if (SymType == "FUNC" || SymType == "GNU_IFUNC") {
-          AsmFile << ".text\n";
+          AsmFile << Syntax->text() << "\n";
         } else if (SymType == "TLS") {
           AsmFile << ".section .tdata, \"waT\"\n";
         } else {
-          AsmFile << ".data\n";
+          AsmFile << Syntax->data() << "\n";
         }
 
         if (!Printer.getIgnoreSymbolVersions()) {
@@ -141,24 +166,24 @@ bool ElfBinaryPrinter::generateDummySO(
               Name = UniqueNameBuilder.str();
             }
 
-            AsmFile << ".symver " << Name << "," << OriginalName << *Version
-                    << '\n';
+            AsmFile << Syntax->symVer() << " " << Name << "," << OriginalName
+                    << *Version << '\n';
             EmittedSymvers = true;
           }
         }
 
-        // TODO: Make use of syntax content in ElfPrettyPrinter?
         std::string Binding;
         if (SymInfo->Binding == "WEAK") {
-          Binding = ".weak";
+          Binding = Syntax->weak();
         } else {
-          Binding = ".globl";
+          Binding = Syntax->global();
         }
 
         AsmFile << Binding << " " << Name << "\n";
 
         if ((SymType == "OBJECT" || SymType == "TLS") && SymInfo->Size != 0) {
-          AsmFile << ".size " << Name << ", " << SymInfo->Size << "\n";
+          AsmFile << Syntax->symSize() << " " << Name << ", " << SymInfo->Size
+                  << "\n";
         }
 
         static const std::unordered_map<std::string, std::string>
@@ -174,7 +199,8 @@ bool ElfBinaryPrinter::generateDummySO(
           return false;
         } else {
           const auto& TypeName = TypeNameIt->second;
-          AsmFile << ".type " << Name << ", @" << TypeName << "\n";
+          AsmFile << Syntax->type() << ' ' << Name << ", "
+                  << Syntax->attributePrefix() << TypeName << "\n";
         }
 
         AsmFile << Name << ":\n";
@@ -203,7 +229,7 @@ bool ElfBinaryPrinter::generateDummySO(
   if (EmittedSymvers) {
     if (!Printer.getIgnoreSymbolVersions()) {
       // A version script is only needed if we define versioned symbols.
-      if (gtirb_pprint::printVersionScript(*module.getIR(), VersionScript)) {
+      if (gtirb_pprint::printVersionScript(Module, VersionScript)) {
         Args.push_back("-Wl,--version-script=" + VersionScript.fileName());
       }
     }
@@ -443,8 +469,9 @@ bool ElfBinaryPrinter::prepareDummySOLibs(
   return true;
 }
 
-void ElfBinaryPrinter::addOrigLibraryArgs(
-    const gtirb::Module& module, std::vector<std::string>& args) const {
+void ElfBinaryPrinter::addOrigLibraryArgs(const gtirb::Module& module,
+                                          std::vector<std::string>& args,
+                                          const std::string& Location) const {
   // collect all the library paths
   std::vector<std::string> allBinaryPaths = LibraryPaths;
 
@@ -476,9 +503,12 @@ void ElfBinaryPrinter::addOrigLibraryArgs(
   for (const auto& libraryPath : LibraryPaths) {
     args.push_back("-L" + libraryPath);
   }
+  std::string L = (Location == "" ? "." : Location);
   // add binary library paths (add them to rpath as well)
+  std::regex OriginRegex{R"((\$ORIGIN\b)|($\{ORIGIN\}))"};
   for (const auto& LibraryPath : aux_data::getLibraryPaths(module)) {
-    args.push_back("-L" + LibraryPath);
+    std::string LinkPath = std::regex_replace(LibraryPath, OriginRegex, L);
+    args.push_back("-L" + LinkPath);
     args.push_back("-Wl,-rpath," + LibraryPath);
   }
 }
@@ -562,6 +592,15 @@ std::vector<std::string> ElfBinaryPrinter::buildCompilerArgs(
     args.push_back("-m32");
   }
 
+  // Add stack properties linker flags
+  if (auto StackSize = module.getAuxData<gtirb::schema::ElfStackSize>()) {
+    args.push_back("-Wl,-z,stack-size=" + std::to_string(*StackSize));
+  }
+
+  if (auto StackExec = module.getAuxData<gtirb::schema::ElfStackExec>()) {
+    args.push_back(*StackExec ? "-Wl,-z,execstack" : "-Wl,-z,noexecstack");
+  }
+
   // add arguments given by the printing policy
   const auto& Policy = Printer.getPolicy(module);
   args.insert(args.end(), Policy.compilerArguments.begin(),
@@ -583,14 +622,17 @@ int ElfBinaryPrinter::assemble(const std::string& outputFilename,
     std::cerr << "ERROR: Could not write assembly into a temporary file.\n";
     return -1;
   }
-
-  std::vector<std::string> args{{"-o", outputFilename, "-c"}};
+  TempFile tempOutput;
+  std::vector<std::string> args{{"-o", tempOutput.fileName(), "-c"}};
   args.insert(args.end(), ExtraCompileArgs.begin(), ExtraCompileArgs.end());
   args.push_back(tempFile.fileName());
 
   if (std::optional<int> ret = execute(compiler, args)) {
-    if (*ret)
+    if (*ret) {
       std::cerr << "ERROR: assembler returned: " << *ret << "\n";
+    } else {
+      copyFile(tempOutput.fileName(), outputFilename);
+    }
     return *ret;
   }
 
@@ -648,6 +690,8 @@ int ElfBinaryPrinter::link(const std::string& outputFilename,
   // longer than the call to the compiler.
   std::optional<TempDir> dummySoDir;
   std::vector<std::string> libArgs;
+  boost::filesystem::path outputPath(outputFilename);
+
   if (useDummySO) {
     // Create the temporary directory for storing the synthetic libraries.
     dummySoDir.emplace();
@@ -672,14 +716,15 @@ int ElfBinaryPrinter::link(const std::string& outputFilename,
     // If we're not using synthetic libraries, we just need to pass
     // along the appropriate arguments.
 
-    addOrigLibraryArgs(module, libArgs);
+    addOrigLibraryArgs(module, libArgs,
+                       outputPath.parent_path().generic_string());
   }
 
   TempFile VersionScript(".map");
-  if (aux_data::hasVersionedSymDefs(*module.getIR()) &&
+  if (aux_data::hasVersionedSymDefs(module) &&
       !Printer.getIgnoreSymbolVersions()) {
     // A version script is only needed if we define versioned symbols.
-    if (gtirb_pprint::printVersionScript(*module.getIR(), VersionScript)) {
+    if (gtirb_pprint::printVersionScript(module, VersionScript)) {
       libArgs.push_back("-Wl,--version-script=" + VersionScript.fileName());
     }
   }
@@ -701,17 +746,22 @@ int ElfBinaryPrinter::link(const std::string& outputFilename,
           "fini")) {
     libArgs.push_back(*Arg);
   }
-
+  TempFile tempOutput(std::string(""));
   if (std::optional<int> ret =
-          execute(compiler, buildCompilerArgs(outputFilename, Files, ctx,
+          execute(compiler, buildCompilerArgs(tempOutput.fileName(), Files, ctx,
                                               module, libArgs))) {
-    if (*ret)
+    if (*ret) {
       LOG_ERROR << "assembler returned: " << *ret << "\n";
+    } else {
+      copyFile(tempOutput.fileName(), outputFilename);
+    }
+    tempOutput.close();
     return *ret;
   }
 
   LOG_ERROR << "could not find the assembler '" << compiler
             << "' on the PATH.\n";
+  tempOutput.close();
   return -1;
 }
 

@@ -21,6 +21,7 @@
 #include <unistd.h>
 #endif
 #include "parser.hpp"
+#include "printing_paths.hpp"
 
 namespace fs = boost::filesystem;
 namespace po = boost::program_options;
@@ -70,6 +71,21 @@ getBinaryPrinter(const std::string& format,
                                                            libraryPaths);
   return nullptr;
 }
+
+static std::vector<gtirb_pprint_parser::FileTemplateRule>
+getTemplateRules(const po::variables_map& vm, const std::string& name) {
+  if (vm.count(name)) {
+    try {
+      return gtirb_pprint_parser::parseInput(vm[name].as<std::string>());
+    } catch (const gtirb_pprint_parser::parse_error& err) {
+      LOG_ERROR << "Invalid argument for --" << name << ": " << err.what()
+                << "\n";
+      throw;
+    }
+  } else {
+    return {};
+  }
+};
 
 int main(int argc, char** argv) {
   gtirb_layout::registerAuxDataTypes();
@@ -183,9 +199,14 @@ int main(int argc, char** argv) {
       "Enable symbol versions. If symbol versions are considered many "
       "binaries will require a version linker script. Only relevant for ELF "
       "executables.");
-  desc.add_options()("version-script", po::value<std::string>(),
-                     "Generate a version script file on the given path. Only "
-                     "relevant for ELF executables.");
+  desc.add_options()(
+      "version-script", po::value<std::string>()->value_name("FILE"),
+      "Generate a version script file on the given path. Only "
+      "relevant for ELF executables."
+      "If there is more than one module, files for each can be specified "
+      "as so: \n `[MODULE1=]FILE1[,[MODULE2]=FILE2...]`\n"
+      "Run `gtirb-ppprinter --help modules` for more details regarding "
+      "selecting modules and specifying file names.");
   po::positional_options_description pd;
   pd.add("ir", -1);
   po::variables_map vm;
@@ -227,24 +248,14 @@ int main(int argc, char** argv) {
 
   ContextForgetter ctx;
   gtirb::IR* ir = nullptr;
-
-  std::vector<gtirb_pprint_parser::FileTemplateRule> asmSubs, binarySubs;
-  if (vm.count("asm")) {
-    try {
-      asmSubs = gtirb_pprint_parser::parseInput(vm["asm"].as<std::string>());
-    } catch (const gtirb_pprint_parser::parse_error& err) {
-      LOG_ERROR << "Invalid argument for --asm: " << err.what() << "\n";
-      return 1;
-    }
-  }
-  if (vm.count("binary")) {
-    try {
-      binarySubs =
-          gtirb_pprint_parser::parseInput(vm["binary"].as<std::string>());
-    } catch (const gtirb_pprint_parser::parse_error& err) {
-      LOG_ERROR << "Invalid argument for --binary: " << err.what() << "\n";
-      return 1;
-    }
+  std::vector<gtirb_pprint_parser::FileTemplateRule> AsmRules, BinaryRules,
+      VSRules;
+  try {
+    AsmRules = getTemplateRules(vm, "asm");
+    BinaryRules = getTemplateRules(vm, "binary");
+    VSRules = getTemplateRules(vm, "version-script");
+  } catch (const gtirb_pprint_parser::parse_error& /*err*/) {
+    return EXIT_FAILURE;
   }
   if (vm.count("ir") != 0) {
     fs::path irPath = vm["ir"].as<std::string>();
@@ -276,33 +287,29 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  struct ModulePrintingInfo {
-    gtirb::Module* Module;
-    std::optional<fs::path> AsmName;
-    std::optional<fs::path> BinaryName;
-    ModulePrintingInfo(gtirb::Module* M, std::optional<fs::path> AN,
-                       std::optional<fs::path> BN)
-        : Module(M), AsmName(AN), BinaryName(BN){};
-  };
-
-  std::vector<ModulePrintingInfo> Modules;
-  if (vm.count("asm") || vm.count("binary")) {
-    std::set<fs::path> AsmNames, BinaryNames;
+  std::vector<gtirb_pprint::ModulePrintingInfo> Modules;
+  if (vm.count("asm") || vm.count("binary") || vm.count("version-script")) {
+    std::set<fs::path> Paths;
     for (auto& m : ir->modules()) {
       auto AsmName =
-          gtirb_pprint_parser::getOutputFilePath(asmSubs, m.getName());
+          gtirb_pprint_parser::getOutputFilePath(AsmRules, m.getName());
       auto BinaryName =
-          gtirb_pprint_parser::getOutputFilePath(binarySubs, m.getName());
-      if (AsmName && !AsmNames.insert(fs::absolute(*AsmName)).second) {
-        LOG_ERROR << "Cannot print multiple modules to " << *AsmName << "\n";
-        return 1;
+          gtirb_pprint_parser::getOutputFilePath(BinaryRules, m.getName());
+      auto VersionScriptName =
+          gtirb_pprint_parser::getOutputFilePath(VSRules, m.getName());
+      for (auto& Name : {AsmName, BinaryName, VersionScriptName}) {
+        if (!Name) {
+          continue;
+        }
+        if (Paths.count(*Name)) {
+          LOG_ERROR << "Cannot print multiple modules to " << *Name << "\n";
+          return 1;
+        } else {
+          Paths.insert(*Name);
+        }
       }
-      if (BinaryName && !BinaryNames.insert(fs::absolute(*BinaryName)).second) {
-        LOG_ERROR << "Cannot print multiple modules to " << *BinaryName << "\n";
-        return 1;
-      }
-      if (AsmName || BinaryName) {
-        Modules.emplace_back(&m, AsmName, BinaryName);
+      if (AsmName || BinaryName || VersionScriptName) {
+        Modules.emplace_back(&m, AsmName, BinaryName, VersionScriptName);
       };
     }
     if (Modules.size() == 0) {
@@ -329,17 +336,9 @@ int main(int argc, char** argv) {
       return EXIT_FAILURE;
     }
     Modules = {Modules[Index]};
-  } else {
-    // Modules should always be printed after
-    // any other module that they link against
-    std::stable_sort(
-        Modules.begin(), Modules.end(),
-        [](const ModulePrintingInfo& M1, const ModulePrintingInfo& M2) {
-          const auto& Libraries = aux_data::getLibraries(*(M2.Module));
-          return std::find(Libraries.begin(), Libraries.end(),
-                           M1.Module->getName()) != Libraries.end();
-        });
   }
+
+  Modules = fixupLibraryAuxData(Modules);
 
   // Configure the pretty-printer
   gtirb_pprint::PrettyPrinter pp;
@@ -472,22 +471,6 @@ int main(int argc, char** argv) {
     pp.setIgnoreSymbolVersions(!EnableSymbolVersions);
   }
 
-  if (vm.count("version-script") != 0) {
-    if (!EnableSymbolVersions) {
-      LOG_ERROR
-          << "Cannot emit a version script while ignoring symbol versions\n";
-      return EXIT_FAILURE;
-    }
-
-    if (!aux_data::hasVersionedSymDefs(*ir)) {
-      LOG_INFO << "Generating version script, but it is not needed.\n";
-    }
-
-    const auto versionScriptPath = vm["version-script"].as<std::string>();
-    std::ofstream VersionStream(versionScriptPath);
-    gtirb_pprint::printVersionScript(*ir, VersionStream);
-  }
-
   bool new_layout = false;
 
   for (auto& MP : Modules) {
@@ -511,7 +494,7 @@ int main(int argc, char** argv) {
                       [](const gtirb::Symbol& Sym) {
                         return !Sym.hasReferent() && Sym.getAddress();
                       })) {
-        LOG_INFO << "Module " << M.getUUID()
+        LOG_INFO << "Module " << M.getName()
                  << " has integral symbols; attempting to assign referents..."
                  << std::endl;
         gtirb_layout::fixIntegralSymbols(ctx, M);
@@ -521,6 +504,27 @@ int main(int argc, char** argv) {
     pp.updateDynMode(M, SharedOption);
     // Apply any needed fixups
     applyFixups(ctx, M, pp);
+    // Write version script to a file
+    if (MP.VersionScriptName) {
+      LOG_INFO << "Generating version script for module " << M.getName()
+               << "\n";
+      if (!EnableSymbolVersions) {
+        LOG_ERROR
+            << "Cannot emit a version script while ignoring symbol versions\n";
+        return EXIT_FAILURE;
+      }
+      if (!aux_data::hasVersionedSymDefs(*MP.Module)) {
+        LOG_INFO << "No versioned symbols present, generating version script "
+                    "anyway\n";
+      }
+
+      if (MP.VersionScriptName->has_parent_path()) {
+        fs::create_directories(MP.VersionScriptName->parent_path());
+      }
+      std::ofstream VersionStream(MP.VersionScriptName->generic_string());
+      gtirb_pprint::printVersionScript(*MP.Module, VersionStream);
+    }
+
     // Write ASM to a file.
     const auto asmPath = MP.AsmName;
     if (asmPath) {
@@ -528,8 +532,11 @@ int main(int argc, char** argv) {
         LOG_ERROR << "The given path \"" << *asmPath << "\" has no filename.\n";
         return EXIT_FAILURE;
       }
+      LOG_INFO << "Generating assembly file for module " << M.getName() << "\n";
       auto name = asmPath->generic_string();
-
+      if (asmPath->has_parent_path()) {
+        fs::create_directories(asmPath->parent_path());
+      }
       std::ofstream ofs(name);
       if (ofs) {
         if (pp.print(ofs, ctx, M)) {
@@ -549,7 +556,7 @@ int main(int argc, char** argv) {
                   << "\" has no filename.\n";
         return EXIT_FAILURE;
       }
-
+      LOG_INFO << "Generating binary for module " << M.getName() << "\n";
       std::vector<std::string> extraCompilerArgs;
       if (vm.count("compiler-args") != 0)
         extraCompilerArgs = vm["compiler-args"].as<std::vector<std::string>>();
@@ -582,7 +589,8 @@ int main(int argc, char** argv) {
     }
 
     // Write ASM to the standard output if no other action was taken.
-    if ((vm.count("asm") == 0) && (vm.count("binary") == 0)) {
+    if ((vm.count("asm") == 0) && (vm.count("binary") == 0) &&
+        (vm.count("version-script") == 0)) {
       pp.print(std::cout, ctx, M);
     }
   }

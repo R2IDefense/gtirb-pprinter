@@ -43,11 +43,9 @@
 #if defined(_MSC_VER) || __has_declspec_attribute(dllexport)
 #if defined gtirb_layout_EXPORTS
 #define GTIRB_LAYOUT_EXPORT_API _declspec(dllexport)
-#elif !defined(gtirb_layout_STATIC)
+#else
 #define GTIRB_LAYOUT_EXPORT_API _declspec(dllimport)
-#else 
-#define GTIRB_LAYOUT_EXPORT_API
-#endif 
+#endif
 #elif defined(__GNUC__) || __has_attribute(visibility)
 #define GTIRB_LAYOUT_EXPORT_API __attribute__((visibility("default")))
 #else

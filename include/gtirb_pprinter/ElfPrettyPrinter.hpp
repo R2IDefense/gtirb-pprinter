@@ -57,6 +57,7 @@ public:
   const std::string& uleb128() const { return ULEB128Directive; }
   const std::string& sleb128() const { return SLEB128Directive; }
   const std::string& symVer() const { return SymVerDirective; }
+  const std::string& symSize() const { return SymSizeDirective; }
 
 private:
   const std::string CommentStyle{"#"};
@@ -84,7 +85,7 @@ private:
   const std::string InternalDirective{".internal"};
   const std::string ULEB128Directive{".uleb128"};
   const std::string SLEB128Directive{".sleb128"};
-
+  const std::string SymSizeDirective{".size"};
   const std::string SymVerDirective{".symver"};
 
 protected:
@@ -114,11 +115,14 @@ protected:
   void printSectionHeaderDirective(std::ostream& os,
                                    const gtirb::Section& section) override;
   void printSectionProperties(std::ostream& os,
-                              const gtirb::Section& section) override;                              
-  void printSectionFooter(std::ostream& os,
-                          const gtirb::Section& section) override;                              
+                              const gtirb::Section& section) override;
   void printSectionFooterDirective(std::ostream& os,
                                    const gtirb::Section& addr) override;
+
+  /** Print the `.size FunctionSymbol, . - FunctionSymbol` label that defines
+   * the size of the function symbol. */
+  void printFunctionEnd(std::ostream& OS,
+                        const gtirb::Symbol& FunctionSymbol) override;
 
   void printByte(std::ostream& os, std::byte byte) override;
 
@@ -148,6 +152,7 @@ protected:
   void printSymbolType(std::ostream& os, std::string& Name,
                        const aux_data::ElfSymbolInfo& SymbolInfo);
 
+  /** Print .size directives for OBJECT and TLS symbols. */
   void printSymbolSize(std::ostream& os, std::string& Name,
                        const aux_data::ElfSymbolInfo& SymbolInfo);
 
@@ -168,6 +173,7 @@ protected:
 
 private:
   bool TlsGdSequence = false;
+  void computeFunctionAliases();
   const gtirb::Symbol* ImageBase;
   /* Keep track of all symbols that need to be IMAGEREL (windows) */
   std::set<gtirb::Symbol*> rvaSymbols;

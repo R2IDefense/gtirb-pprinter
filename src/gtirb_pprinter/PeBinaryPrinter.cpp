@@ -627,9 +627,15 @@ int PeBinaryPrinter::assemble(const std::string& Path, gtirb::Context& Context,
 
   // Find the target platform.
   std::optional<std::string> Machine = getPeMachine(Module);
-
-  return executeCommands(assembleCommands(
-      {Asm.fileName(), Path, Machine, ExtraCompileArgs, LibraryPaths}));
+  TempFile tempOutput(".bin");
+  tempOutput.close();
+  auto retc = executeCommands(
+      assembleCommands({Asm.fileName(), tempOutput.fileName(), Machine,
+                        ExtraCompileArgs, LibraryPaths}));
+  if (retc == 0) {
+    copyFile(tempOutput.fileName(), Path);
+  }
+  return retc;
 }
 
 int PeBinaryPrinter::link(const std::string& OutputFile,
@@ -689,14 +695,19 @@ int PeBinaryPrinter::link(const std::string& OutputFile,
   }
   std::vector<TempFile> Compilands;
   Compilands.emplace_back(std::move(Compiland));
+  TempFile tempOutput(".bin");
+  tempOutput.close();
   // Add assemble-link commands.
-  CommandList LinkCommands =
-      linkCommands({OutputFile, Compilands, Resources, ExportDef, EntryPoint,
-                    Subsystem, Machine, Dll, ExtraCompileArgs, LibraryPaths});
+  CommandList LinkCommands = linkCommands(
+      {tempOutput.fileName(), Compilands, Resources, ExportDef, EntryPoint,
+       Subsystem, Machine, Dll, ExtraCompileArgs, LibraryPaths});
   appendCommands(Commands, LinkCommands);
-
   // Execute the assemble-link command list.
-  return executeCommands(Commands);
+  auto retc = executeCommands(Commands);
+  if (retc == 0) {
+    copyFile(tempOutput.fileName(), OutputFile);
+  }
+  return retc;
 }
 
 int PeBinaryPrinter::libs(const gtirb::Module& Module) const {

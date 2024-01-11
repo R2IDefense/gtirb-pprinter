@@ -132,4 +132,17 @@ std::optional<int> execute(const std::string& Tool,
   }
   return bp::system(Path, Args);
 }
+
+void copyFile(const std::string& src, const std::string& dest) {
+  fs::path DestPath(dest);
+  if (DestPath.has_parent_path()) {
+    boost::filesystem::create_directories(DestPath.parent_path());
+  }
+  LOG_INFO << "Saving file to " << dest << "\n";
+  fs::path SrcPath(src);
+  auto perms = fs::status(SrcPath).permissions();
+  fs::copy_file(src, dest, fs::copy_option::overwrite_if_exists);
+  fs::permissions(DestPath, perms);
+}
+
 } // namespace gtirb_bprint

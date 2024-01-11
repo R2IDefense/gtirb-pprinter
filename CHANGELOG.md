@@ -1,15 +1,41 @@
-# 1.10.0 (Unreleased)
+# 2.1.1 (Unreleased)
+  * Fix dummy-so generation to use correct syntax for ARM with `--dummy-so=yes`
+
+# 2.1.0
+  * `--asm` option now prints the assembly for each module of an IR separately
+  * `--version-script` now prints a separate version script for each module
+    of an IR
+  * `--module` option deprecated
+  * Binaries printed from a multi-module IR are linked against other binaries from the
+    same IR whenever possible
+  * Use `elfStackExec` and `elfStackSize` auxdata to generate appropriate linker flags.
+  * Requires gtirb >=2.0.0
+  * Set entrypoint in ELF files to `_start` symbol even if the symbol is not
+    `GLOBAL`. Fixes segfaults in rewritten binaries with non-global `_start`
+    symbols.
+  * Fix segfault if `elfDynamicInit` or `elfDynamicFini` auxdata do not refer
+    to a `CodeBlock`.
+  * Use function boundaries and the `functionNames` auxdata to print `PROC` and `ENDP` directives in PE binaries.
+    If the `functionNames` auxdata is not present, no `PROC` and `ENDP` directives will be printed.
+  * Use function boundaries and the `functionNames` auxdata to print `.size`
+    directives for `FUNC` and `GNU_IFUNC` symbols in ELF binaries associated to functions.
+    If the `functionNames` auxdata is not present, no `.size` directives for functions will be printed.
+  * Print `.size` directives for `TLS` symbols in ELF binaries.
+  * Deprecate the `PrettyPrinterBase` methods: `getContainerFunctionName`, `getFunctionName`, `isFunctionEntry`, and `isFunctionLastBlock`; and
+    the attributes: `functionEntry`, and `functionLastBlock`.
+
+# 2.0.0
   * Remove unnecessary --isa,-I option.
   * Fix bug where a binary with COPY-relocated symbols could be missing
     DT_NEEDED entries after rewriting with `--dummy-so`.
   * Removed `--binaries` option
   * `--binary` option now links each module of the IR into a separate binary
-  * `--module` option to work in tandem with the --asm and --binary options
   * Added `--object` option to print relocatable object files
   * Binary printer methods now operate on modules, rather than the entire IR
   * `--shared` option now takes an argument: either `yes`, `no`, or `auto` (`auto` uses aux_data `binaryType`)
   * Pass `-init` and `-fini` to `ld` based on `elfDynamicInit` and `elfDynamicFini` auxdata.
   * Added patterns for selecting and printing modules by names
+
 
 # 1.9.0
   * Added a Python wheel to make gtirb-pprinter pip-installable.

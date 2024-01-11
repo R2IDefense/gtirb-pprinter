@@ -13,7 +13,6 @@ set(${PROJECT_NAME}_H
 set(${PROJECT_NAME}_SRC gtirb_layout.cpp)
 
 add_library(${PROJECT_NAME} ${${PROJECT_NAME}_H} ${${PROJECT_NAME}_SRC})
-target_compile_definitions(${PROJECT_NAME} PRIVATE gtirb_layout_EXPORTS)
 
 set_target_properties(
   ${PROJECT_NAME}

@@ -83,7 +83,6 @@ option(GTIRB_PPRINTER_BUILD_SHARED_LIBS "Build shared libraries." ON)
 
 if(GTIRB_PPRINTER_STATIC_DRIVERS OR NOT GTIRB_PPRINTER_BUILD_SHARED_LIBS)
   set(BUILD_SHARED_LIBS OFF)
-  add_compile_definitions(gtirb_layout_STATIC)
 else()
   set(BUILD_SHARED_LIBS ON)
 endif()
@@ -226,11 +225,7 @@ if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
   # Per-configuration options
   add_compile_options($<$<CONFIG:Debug>:-D_DEBUG>)
   add_compile_options($<$<CONFIG:Debug>:-DDEBUG>)
-  if(BUILD_SHARED_LIBS)
-    add_compile_options($<$<CONFIG:Debug>:-MDd>)
-  else()
-    add_compile_options($<$<CONFIG:Debug>:-MTd>)
-  endif()
+  add_compile_options($<$<CONFIG:Debug>:-MDd>)
   add_compile_options($<$<CONFIG:Debug>:-Ob0>) # Disables inline expansion
   add_compile_options(
     $<$<CONFIG:Debug>:-Od>) # Disables optimization, speeding compilation and
@@ -247,12 +242,7 @@ if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
 
   add_compile_options($<$<CONFIG:RelWithDebInfo>:-D_NDEBUG>)
   add_compile_options($<$<CONFIG:RelWithDebInfo>:-DNDEBUG>)
-  if(BUILD_SHARED_LIBS)
-    add_compile_options($<$<CONFIG:RelWithDebInfo>:-MD>)
-  else()
-    add_compile_options($<$<CONFIG:RelWithDebInfo>:-MT>)
-  endif()
-
+  add_compile_options($<$<CONFIG:RelWithDebInfo>:-MD>)
   add_compile_options($<$<CONFIG:RelWithDebInfo>:-O2>) # Creates fast code.
   add_compile_options(
     $<$<CONFIG:RelWithDebInfo>:-Ob2>) # The default value. Allows expansion of
@@ -270,12 +260,7 @@ if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
 
   add_compile_options($<$<CONFIG:Release>:-D_NDEBUG>)
   add_compile_options($<$<CONFIG:Release>:-DNDEBUG>)
-  if(BUILD_SHARED_LIBS)
-    add_compile_options($<$<CONFIG:Release>:-MD>)
-  else() 
-  add_compile_options($<$<CONFIG:Release>:-MT>)
-  endif()
-  
+  add_compile_options($<$<CONFIG:Release>:-MD>)
   add_compile_options($<$<CONFIG:Release>:-O2>) # Creates fast code.
   add_compile_options(
     $<$<CONFIG:Release>:-Ob2>) # The default value. Allows expansion of
@@ -307,7 +292,7 @@ endif()
 # ---------------------------------------------------------------------------
 # gtirb
 # ---------------------------------------------------------------------------
-find_package(gtirb 1.10.5 REQUIRED)
+find_package(gtirb 2.0.0 REQUIRED)
 
 # ---------------------------------------------------------------------------
 # Boost
@@ -339,7 +324,6 @@ if(TARGET Boost::headers)
 endif()
 
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
-
 
 # ---------------------------------------------------------------------------
 # capstone

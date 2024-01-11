@@ -87,6 +87,7 @@
 namespace gtirb_pprint {
 static const std::unordered_set<std::string> PLTSections = {".plt", ".plt.sec",
                                                             ".plt.got"};
+
 ElfPrettyPrinter::ElfPrettyPrinter(gtirb::Context& context_,
                                    const gtirb::Module& module_,
                                    const ElfSyntax& syntax_,
@@ -102,6 +103,7 @@ ElfPrettyPrinter::ElfPrettyPrinter(gtirb::Context& context_,
   }
 
   skipVersionSymbols();
+  computeFunctionAliases();
 }
 
 void ElfPrettyPrinter::skipVersionSymbols() {
@@ -119,6 +121,24 @@ void ElfPrettyPrinter::skipVersionSymbols() {
   for (auto& [Library, VersionMap] : SymVersNeeded) {
     for (auto& [VerId, VerName] : VersionMap) {
       policy.skipSymbols.insert(VerName);
+    }
+  }
+}
+
+void ElfPrettyPrinter::computeFunctionAliases() {
+  for (const auto* Symbol : FunctionSymbols) {
+    if (!Symbol->getAddress()) {
+      continue;
+    }
+    for (const auto& Alias : module.findSymbols(*Symbol->getAddress())) {
+      if (&Alias == Symbol) {
+        continue;
+      }
+      auto AliasSymInfo = aux_data::getElfSymbolInfo(Alias);
+      if (AliasSymInfo &&
+          (AliasSymInfo->Type == "FUNC" || AliasSymInfo->Type == "GNU_IFUNC")) {
+        FunctionAliases[Symbol].insert(&Alias);
+      }
     }
   }
 }
@@ -256,7 +276,7 @@ void ElfPrettyPrinter::printSymbolHeader(std::ostream& os,
       assert(!"unknown visibility in elfSymbolInfo!");
     }
     printSymbolType(os, Name, *SymbolInfo);
-    if (SymbolInfo->Type == "OBJECT") {
+    if (SymbolInfo->Type == "OBJECT" || SymbolInfo->Type == "TLS") {
       printSymbolSize(os, Name, *SymbolInfo);
     }
     printBar(os, false);
@@ -286,12 +306,19 @@ void ElfPrettyPrinter::printSymbolType(
 }
 
 void ElfPrettyPrinter::printSymbolSize(
-    std::ostream& os, std::string& Name,
+    std::ostream& OS, std::string& Name,
     const aux_data::ElfSymbolInfo& SymbolInfo) {
   auto Size = SymbolInfo.Size;
   if (Size != 0) {
-    os << ".size" << ' ' << Name << ", " << Size << "\n";
+    OS << elfSyntax.symSize() << ' ' << Name << ", " << Size << "\n";
   }
+}
+
+void ElfPrettyPrinter::printFunctionEnd(std::ostream& OS,
+                                        const gtirb::Symbol& FunctionSymbol) {
+  std::string FunctionName = getSymbolName(FunctionSymbol);
+  OS << elfSyntax.symSize() << ' ' << FunctionName << ", . - " << FunctionName
+     << "\n";
 }
 
 void ElfPrettyPrinter::printSymExprSuffix(std::ostream& OS,
@@ -538,6 +565,7 @@ ElfPrettyPrinterFactory::ElfPrettyPrinterFactory() {
       ".comment", ".eh_frame_hdr", ".eh_frame", ".fini",    ".got",
       ".got.plt", ".init",         ".rela.dyn", ".rela.plt"};
   dynamicSkipSections.insert(PLTSections.begin(), PLTSections.end());
+
   registerNamedPolicy(
       "dynamic",
       PrintingPolicy{
@@ -558,6 +586,7 @@ ElfPrettyPrinterFactory::ElfPrettyPrinterFactory() {
           /// Extra compiler arguments.
           {},
       });
+
   registerNamedPolicy("static",
                       PrintingPolicy{
                           /// Functions to avoid printing.
@@ -571,6 +600,7 @@ ElfPrettyPrinterFactory::ElfPrettyPrinterFactory() {
                           /// Extra compiler arguments.
                           {"-static", "-nostartfiles"},
                       });
+
   std::unordered_set<std::string> completeSkipSections = {
       ".eh_frame_hdr", ".eh_frame", ".got",
       ".got.plt",      ".rela.dyn", ".rela.plt"};
